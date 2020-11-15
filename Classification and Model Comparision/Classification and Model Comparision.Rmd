@@ -1,0 +1,517 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions. You can delete this comment if you like.
+
+Other useful keyboard shortcuts include Alt- for the assignment operator, and Ctrl+Shift+M
+for the pipe operator. You can delete these reminders if you don't want them in your report.
+
+
+```{r}
+# setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data") #Don't forget to set your working directory before you start!
+
+library("tidyverse")
+library("tidymodels")
+library("plotly")
+library("skimr")
+library("caret")
+library("dplyr")
+library("glmnet")
+library("cowplot")
+```
+
+```{r}
+# 1.
+setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+
+dfc <- read_csv("assignment3Carvana.csv")
+skim(dfc)
+
+```
+
+```{r}
+
+dfc
+
+```
+
+```{r}
+
+#2.a
+set.seed(52156)
+dfcTrain <- dfc %>% sample_frac(0.65)
+dfcTest <- dplyr::setdiff(dfc, dfcTrain)
+
+```
+
+```{r}
+
+plot <- dfcTrain %>% 
+  ggplot(aes(x = factor(BadBuy) , y = MMRAauction)) + geom_boxplot()
+plot
+
+```
+
+```{r}
+
+plot <- dfcTrain %>% 
+  ggplot(aes(x = factor(BadBuy) , y = Age)) + geom_boxplot()
+plot
+
+```
+
+```{r}
+
+plot <- dfcTrain %>% 
+  ggplot(aes(x = factor(BadBuy) , y = Odo)) + geom_boxplot()
+plot
+
+```
+
+```{r}
+
+# 2.b
+dfcTrain %>% 
+  group_by(Size) %>%
+  summarise(GoodCars = length(BadBuy) - sum(BadBuy), Lemons = sum(BadBuy)) %>% 
+  mutate(Percentage = Lemons/(GoodCars + Lemons)*100) %>% 
+  arrange(desc(Percentage))
+
+```
+
+```{r}
+
+# 3.a
+fitLem <- lm(formula = BadBuy ~., data = dfcTrain)
+summary(fitLem)
+
+```
+
+```{r}
+
+resultsLem <- dfcTrain %>% mutate(Prediction = predict(fitLem, dfcTrain))
+rmse(resultsLem, truth = BadBuy, estimate = Prediction)
+```
+
+
+```{r}
+resultsLem <- dfcTest %>% mutate(Prediction = predict(fitLem, dfcTest))
+rmse(resultsLem, truth = BadBuy, estimate = Prediction)
+
+```
+
+```{r}
+
+# 3.c
+resultsLem <-
+	fitLem %>%
+  predict(dfcTest, type = "response") %>% 
+  bind_cols(dfcTest, predictedProb=.) %>% 
+  select(BadBuy, predictedProb) %>% 
+  mutate(predictedBadBuy = as.factor(ifelse(predictedProb > 0.5, 1, 0)), BadBuy = as.factor(BadBuy))
+resultsLem %>% 
+  conf_mat(truth = BadBuy, estimate = predictedBadBuy)
+
+```
+
+```{r}
+
+# 3.d
+resultsLem %>% 
+  xtabs(~predictedBadBuy+BadBuy, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+dataGLM = data.frame(Auction="ADESA", Age=1, Make="HONDA",Color="SILVER", WheelType="Covers",Odo=10000, Size="LARGE",MMRAauction=8000, MMRAretail=10000)
+
+predict(fitLem, dataGLM, type="response")
+
+```
+
+
+```{r}
+# 4.a
+dfcTrain <- dfcTrain %>% 
+  mutate(BadBuy = as.factor(BadBuy))
+dfcTest <- dfcTest %>% 
+  mutate(BadBuy = as.factor(BadBuy))
+
+resultsLemLR <-
+	train(BadBuy ~ ., data = dfcTrain, family = "binomial", method = "glm") %>%
+  predict(dfcTest, type = "raw") %>% 
+  bind_cols(dfcTest, predictedClass=.)
+skim(resultsLemLR)
+
+```
+
+```{r}
+
+resultsLemLR %>% 
+  group_by(Auction) %>% 
+  tally()
+
+```
+
+```{r}
+
+resultsLemLR %>% 
+  group_by(Make) %>% 
+  tally()
+
+```
+
+```{r}
+
+resultsLemLR %>% 
+  group_by(Color) %>% 
+  tally()
+
+```
+
+```{r}
+
+resultsLemLR %>% 
+  group_by(WheelType) %>% 
+  tally()
+
+```
+
+```{r}
+
+resultsLemLR %>% 
+  group_by(Size) %>% 
+  tally()
+
+```
+
+```{r}
+
+dfcNew <- dfc
+dfcNew <- dfcNew %>% 
+  mutate(Color = ifelse(Color == "NULL", "NOTAVAIL", Color)) 
+
+dfMake <- dfcNew %>% 
+  group_by(Make) %>% 
+  tally() %>% 
+  filter(n < 10)
+
+dfcNew <- dfcNew %>%  
+  mutate(Make = ifelse(Make %in% dfMake$Make, "OTHER", Make))
+
+```
+
+```{r}
+
+dfcNew <- dfcNew %>% 
+  mutate(BadBuy = as.factor(BadBuy))
+
+set.seed(52156)
+dfcTrain <- dfcNew %>% sample_frac(0.65)
+dfcTest <- dplyr::setdiff(dfcNew, dfcTrain)
+
+fitLemNew <- train(BadBuy ~ ., data = dfcTrain, family = "binomial", method = "glm") 
+summary(fitLemNew)
+
+```
+
+```{r}
+
+# 4.d
+resultsLemNew <- fitLemNew %>% 
+  predict(dfcTest, type = "raw") %>% 
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsLemNew %>% 
+  conf_mat(truth = BadBuy, estimate = predictedClass)
+
+```
+
+```{r}
+
+resultsLemNew %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive = '1') %>% 
+  tidy()
+
+```
+
+```{r}
+
+dataGLM = data.frame(Auction="ADESA", Age=1, Make="HONDA",Color="SILVER", WheelType="Covers",Odo=10000, Size="LARGE",MMRAauction=8000, MMRAretail=10000)
+
+predict(fitLemNew, dataGLM, type="raw")
+
+```
+
+
+```{r}
+#5.a
+set.seed(123)
+dfcTrain <- dfcNew %>% sample_frac(0.65)
+dfcTest <- dplyr::setdiff(dfcNew, dfcTrain)
+
+resultsLDA <- train(BadBuy ~ ., data = dfcTrain, family = "binomial", method = "lda", trControl=trainControl(method='cv', number=10)) %>%
+  predict(dfcTest, type = "raw") %>% 
+  bind_cols(dfcTest, predictedClass=.)
+summary(resultsLDA)
+
+```
+
+```{r}
+
+resultsLDA %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+#5.b
+set.seed(123)
+fitKNN <- train(BadBuy~., data = dfcTrain, method = "knn", trControl=trainControl(method = "cv", number = 10), tuneLength = 20)
+
+fitKNN
+
+```
+
+```{r}
+
+fitKNN %>% 
+  ggplot(aes(x=k, y=Accuracy))
+
+```
+
+```{r}
+
+resultsKNN <- 
+  fitKNN %>% 
+  predict(dfcTest, type = 'raw') %>% 
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsKNN %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive='1')
+
+```
+
+```{r}
+
+# 5.c
+set.seed(123)
+lambdaValues <- 10^seq(-5, 2, length = 100)
+fitLasso <- train(BadBuy~., family='binomial', data=dfcTrain, method='glmnet', trControl=trainControl(method='cv', number=10), tuneGrid = expand.grid(alpha=1, lambda=lambdaValues))
+
+summary(fitLasso)
+
+```
+
+```{r}
+
+varImp(fitLasso)$importance %>% 
+  rownames_to_column(var = "Variable") %>%
+  mutate(Importance = scales::percent(Overall/100)) %>% 
+  arrange(desc(Overall)) %>% 
+  as_tibble()
+
+
+```
+
+```{r}
+plot(varImp(fitLasso), top = 25)
+```
+
+
+```{r}
+
+fitLasso$bestTune$lambda
+
+```
+
+```{r}
+
+resultsLasso <- 
+  fitLasso %>% 
+  predict(dfcTest, type = 'raw') %>% 
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsLasso %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive='1')
+
+```
+
+```{r}
+
+#5.d
+set.seed(123)
+
+resultsRidge <- 
+  train(BadBuy~., family='binomial', data=dfcTrain, method='glmnet', trControl=trainControl(method='cv', number=10), tuneGrid = expand.grid(alpha=0, lambda=lambdaValues)) %>% 
+  predict(dfcTest, type = 'raw') %>% 
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsRidge %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive='1')
+
+```
+
+```{r}
+
+set.seed(123)
+
+fitElasticNet <- train(BadBuy ~ ., family='binomial', data=dfcTrain, method='glmnet', trControl=trainControl(method='cv', number=10), tuneLength=10)
+
+```
+
+```{r}
+
+varImp(fitElasticNet)$importance %>% 
+  rownames_to_column(var = "Variable") %>%
+  mutate(Importance = scales::percent(Overall/100)) %>% 
+  arrange(desc(Overall)) %>% 
+  as_tibble()
+
+```
+
+```{r}
+
+plot(varImp(fitElasticNet), top = 25)
+
+```
+
+```{r}
+
+fitElasticNet$bestTune
+
+```
+
+```{r}
+
+plot(fitElasticNet$finalModel, xvar="lambda", label = TRUE)
+
+```
+
+```{r}
+
+coef(fitElasticNet$finalModel, fitElasticNet$bestTune$lambda)
+
+```
+
+```{r}
+
+resultsElasticNet <- 
+  fitElasticNet %>%
+  predict(dfcTest, type='raw') %>%
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsElasticNet %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+#5.e
+set.seed(123)
+
+resultsQDA <-
+  train(BadBuy~., family = 'binomial', method = 'qda', data = dfcTrain, trControl = trainControl(method = "cv", number = 10)) %>% 
+  predict(dfcTest, type = 'raw') %>% 
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsQDA %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+corData <- cor(dfcTrain[,c(2,6,8,9)])
+corData
+
+```
+
+
+```{r}
+
+resultsQDA <-
+  train(BadBuy~.-Make-MMRAauction, family = 'binomial', method = 'qda', data = dfcTrain, trControl = trainControl(method = "cv", number = 10)) %>% 
+  predict(dfcTest, type = 'raw') %>% 
+  bind_cols(dfcTest, predictedClass=.)
+
+resultsQDA %>% 
+  xtabs(~predictedClass+BadBuy, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+options(yardstick.event_first = FALSE)
+
+out1 <- 
+  resultsLDA %>% 
+  select(BadBuy, predictedClass) %>% 
+  mutate(model = "m1")
+
+out2 <- 
+  resultsKNN %>%
+  select(BadBuy, predictedClass) %>% 
+  mutate(model = "m2")
+
+out3 <- 
+  resultsLasso %>%
+  select(BadBuy, predictedClass) %>% 
+  mutate(model = "m3")
+
+out4 <- 
+  resultsRidge %>%  
+  select(BadBuy, predictedClass) %>% 
+  mutate(model = "m4")
+
+out5 <- 
+  resultsElasticNet %>%
+  select(BadBuy, predictedClass) %>% 
+  mutate(model = "m5")
+
+out6 <- 
+  resultsQDA %>% 
+  select(BadBuy, predictedClass) %>% 
+  mutate(model = "m6")
+
+outAll <- bind_rows(out1, out2, out3, out4, out5, out6)
+```
+
+
+
+
+
+

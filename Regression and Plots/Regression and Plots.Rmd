@@ -1,0 +1,293 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions. You can delete this comment if you like.
+
+Other useful keyboard shortcuts include Alt- for the assignment operator, and Ctrl+Shift+M
+for the pipe operator. You can delete these reminders if you don't want them in your report.
+
+
+```{r}
+#setwd("C:/") #Don't forget to set your working directory before you start!
+
+library("tidyverse")
+library("tidymodels")
+library("plotly")
+library("skimr")
+library("lubridate")
+library("car")
+```
+
+```{r}
+setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+
+dfw <-
+  read_csv("walmartSales.csv")
+
+```
+
+```{r}
+
+head(dfw)
+
+```
+
+```{r}
+# Q1
+
+fitCPI <- lm(formula = Weekly_Sales ~ CPI, data = dfw)
+summary(fitCPI)
+
+```
+
+```{r}
+# Q2
+
+plot <- dfw %>% 
+  filter(Store == 10) %>% 
+  ggplot(aes(x = CPI, y = Weekly_Sales)) + geom_point() + geom_smooth(method = lm)
+plot
+#ggplotly(plot)
+
+
+```
+
+```{r}
+
+plot <- dfw %>% 
+  filter(Store == 11) %>% 
+  ggplot(aes(x = CPI, y = Weekly_Sales)) + geom_point() + geom_smooth(method = lm)
+plot
+#ggplotly(plot)
+
+```
+
+```{r}
+
+plot <- dfw %>% 
+  filter(Store == 12) %>% 
+  ggplot(aes(x = CPI, y = Weekly_Sales)) + geom_point() + geom_smooth(method = lm)
+plot
+#ggplotly(plot)
+
+```
+
+```{r}
+
+plot <- dfw %>% 
+  filter(Store == 13) %>% 
+  ggplot(aes(x = CPI, y = Weekly_Sales)) + geom_point() + geom_smooth(method = lm)
+plot
+#ggplotly(plot)
+
+```
+
+```{r}
+# Q3
+
+plot <- dfw %>% 
+  filter(year(Date) == 2012) %>% 
+  ggplot(aes(x = CPI, y = Weekly_Sales)) + geom_point() + geom_smooth(method = lm)
+plot
+
+
+```
+
+```{r}
+# Q4
+
+plot <- dfw %>% 
+  filter( Store == 1, year(Date) == 2010) %>% 
+  ggplot(aes(x = CPI, y = Weekly_Sales)) + geom_point() + geom_smooth(method = lm)
+plot
+
+```
+
+```{r}
+# Q5
+
+fitCPISize <- lm(formula = Weekly_Sales ~ CPI + Size, data = dfw)
+summary(fitCPISize)
+anova(fitCPI, fitCPISize)
+  
+```
+
+```{r}
+# Q7
+
+fitFull <- lm(formula = Weekly_Sales ~ CPI + Size + IsHoliday + Temperature + Fuel_Price + Unemployment, data = dfw)
+summary(fitFull)
+anova(fitCPISize, fitFull)
+
+```
+
+```{r}
+# Q8
+
+fitFullTemp <- lm(formula = Weekly_Sales ~ CPI + Size + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price + Unemployment, data = dfw)
+summary(fitFullTemp)
+
+```
+
+```{r}
+
+dfw %>% ggplot(aes(x = Temperature, y = Weekly_Sales)) + 
+  geom_smooth(method = lm, formula = y ~ x + I(x^2))
+
+```
+
+```{r}
+# Q9
+
+# a.
+set.seed(333)
+
+# b.
+dfwTrain <- dfw %>% sample_frac(0.8)
+dfwTest <- dplyr::setdiff(dfw, dfwTrain)
+```
+
+```{r}
+# c.
+fitOrg <- lm(formula = Weekly_Sales ~ CPI + Size + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price + Unemployment, data = dfwTest)
+summary(fitOrg)
+
+```
+
+```{r}
+tidy(fitOrg)
+```
+
+
+```{r}
+# d.
+resultsOrg <- dfwTest %>% mutate(predictedSales = predict(fitOrg, dfwTest))
+resultsOrg
+
+```
+
+```{r}
+# e.
+performance <- metric_set(rmse, mae)
+performance(resultsOrg, truth = Weekly_Sales, estimate = predictedSales)
+
+```
+
+```{r}
+# f.
+fitOrgDate <- lm(formula = Weekly_Sales ~ CPI + Size + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price + Unemployment + Date, data = dfwTest)
+summary(fitOrgDate)
+
+```
+
+```{r}
+resultsOrgDate <- dfwTest %>% mutate(predictedSales = predict(fitOrgDate, dfwTest))
+performance(resultsOrgDate, truth = Weekly_Sales, estimate = predictedSales)
+
+```
+
+```{r}
+anova(fitOrg, fitOrgDate)
+
+```
+
+
+```{r}
+# g.
+fitOrgNoUn <- lm(formula = Weekly_Sales ~ CPI + Size + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price, data = dfwTest)
+summary(fitOrgNoUn)
+
+```
+
+```{r}
+resultsOrgNoUn <- dfwTest %>% mutate(predictedSales = predict(fitOrgNoUn, dfwTest))
+performance(resultsOrgNoUn, truth = Weekly_Sales, estimate = predictedSales)
+
+```
+
+```{r}
+anova(fitOrgNoUn, fitOrg)
+```
+
+
+```{r}
+# Q10
+
+set.seed(333)
+dfwTrain <- dfw %>% sample_frac(0.8)
+dfwTest <- setdiff(dfw, dfwTrain)
+fitLog <- lm(formula = log(Weekly_Sales) ~ CPI + Size + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price + Unemployment, data = dfwTrain)
+summary(fitLog)
+
+```
+
+```{r}
+resultsLog <- dfwTest %>% mutate(predictedSales = predict(fitLog, dfwTest))
+performance(resultsLog, truth = Weekly_Sales, estimate = exp(predictedSales))
+
+```
+
+```{r}
+# b.
+plot(fitOrg)
+
+```
+
+```{r}
+plot(fitLog)
+
+```
+
+```{r}
+# Bonus question
+
+set.seed(333)
+dfwTrain <- dfw %>% sample_frac(0.8)
+dfwTest <- setdiff(dfw, dfwTrain)
+fitSalesSqFoot <- lm(formula = Weekly_Sales/Size ~ CPI + Size + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price + Unemployment, data = dfwTest)
+summary(fitSalesSqFoot)
+
+```
+
+```{r}
+resultsSalesSqFoot <- dfwTest %>% mutate(predictedSales = predict(fitSalesSqFoot, dfwTest))
+performance(resultsSalesSqFoot, truth = Weekly_Sales, estimate = predictedSales*Size)
+
+```
+
+```{r}
+set.seed(333)
+dfwTrain <- dfw %>% sample_frac(0.8)
+dfwTest <- setdiff(dfw, dfwTrain)
+fitSalesSqFoot <- lm(formula = Weekly_Sales/Size ~ CPI + IsHoliday + Temperature + I(Temperature^2) + Fuel_Price + Unemployment, data = dfwTest)
+summary(fitSalesSqFoot)
+
+```
+
+```{r}
+resultsSalesSqFoot <- dfwTest %>% mutate(predictedSales = predict(fitSalesSqFoot, dfwTest))
+performance(resultsSalesSqFoot, truth = Weekly_Sales, estimate = predictedSales*Size)
+
+```
+

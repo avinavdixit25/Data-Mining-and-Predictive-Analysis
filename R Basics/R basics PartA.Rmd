@@ -1,0 +1,537 @@
+---
+title: "Lab 1 - Part A"
+output:
+  html_notebook: default
+  pdf_document:
+    latex_engine: xelatex
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+### Overview
+
+**Topics covered**
+
+1. Intro to R & R Studio   
+2. Basics of coding in R
+3. Working with functions and packages  
+4. Loading and inspecting the titanic.csv dataset
+5. Basics of data wrangling with the `dplyr` package  
+6. Basics of data plotting with the `ggplot2` package
+7. Optional but important use cases
+
+```{r}
+
+print('This lab assumes no prior knowledge of R programming skills but a willingness to learn.')
+
+```
+
+---
+
+### Basics of coding in R
+
+
+You can clear your console with a command `Ctrl + L`
+
+We can use R to do simple arithmetic: 
+
+* division `/`
+* multiple `*`
+* addition `+`
+* exponent `^`
+* subtraction `-`
+
+For instance, you can type the following in your console:
+
+```{r}
+
+5+5
+
+10/5
+
+```
+
+We can add comments using the `#`. If you precede anything with this sign, R will ignore it. For example:
+
+```{r}
+
+# You can use R as a calculator:
+
+5+5
+
+```
+
+To store results or data we need to assign it a name, using the assignment operator `<-`. You can use the shortcut `Alt-` to add the assignment operator.
+
+```{r}
+
+# Let's store a height in cm:
+
+heightCM <- 182
+
+```
+
+After running the above chunk, you should see a variable `height_cm` and its value appear in the Environment (top right).
+
+It is not always possible to view what is stored in a variable by looking at the environment, especially if the variable has multiple values.
+
+```{r}
+
+# What is the value stored in the variable height_cm?
+
+heightCM
+
+```
+
+Note, R is case sensitive. So, typing `HeightCM` would return an error. Let's try!
+
+```{r}
+
+#HeightCM
+
+```
+
+Let's convert your height to inches. Who uses the metric system anyway?
+
+```{r}
+
+# What is my height in inches?
+
+heightCM * 0.39
+
+# Oh wait, I want to store this value!
+
+heightINCH <- heightCM * 0.39
+
+# What is it again?
+
+heightINCH
+
+```
+
+The answer is: All countries except Burma, Liberia, and the United States.
+
+### Working with functions and packages
+
+**Functions:**
+
+`log()` is an example of a function to compute a logarithm.
+
+You can also get information on how to use a function in R studio by typing
+
+`?log()`
+
+This will prompt a Help page in the right pane with the description of the function, including the arguments in the function and some examples of how to use it.
+
+```{r}
+
+?log()
+
+```
+
+
+```{r}
+
+# Find out log of heightCM
+log(heightCM)
+
+# Find out exp of heightCM
+exp(heightCM)
+
+```
+
+
+Objects/variables can store more than one value, and this value can be:
+
+* numeric (e.g., 1, 2, -3, .2)
+* character (e.g., "College Park", "DC", "Baltimore")
+* logical (TRUE or FALSE)
+
+```{r }
+
+# An object/variable with several numeric values is as follows. This is basically a vector. A vector can only have one type of value (all numeric, all character, or all logical):
+
+heightsCM <- c(182, 143, 152, 180)
+
+# What is the mean?
+
+mean(heightsCM)
+
+# What is the standard deviation?
+
+sd(heightsCM)
+
+# What is the number of heights in the vector?
+
+length(heightsCM)
+
+```
+
+
+**Packages**:
+
+* Packages need to be **installed** only once. Run `install.packages("package-name")` to install a package. In this course, you will be given the names of required packages most of the time. However, you are welcome to install new packages and experiment with them.
+
+* Packages need to be **loaded** every time a new R session is started. Typically, all packages are loaded at the very top of a R notebook. Include `library("package-name")` command to load a package whenever you need it.
+
+Let's load a few packages including the `tidyverse` set of packages. You can learn more about `tidyverse` by visiting tidyverse.org or reading the "R for Data Science" book. Notice that we did not have to load a package until now because the functions we used so far were base R functions.
+
+### Loading the default libraries
+
+The following are the libraries that will come with the blank Assignment/Lab template.
+You may need more libraries, and if so, I suggest you create a new chunk to load them.
+
+```{r}
+
+#setwd("C:/...")
+
+library("tidyverse")
+library("tidymodels")
+library("plotly")
+library("skimr")
+
+```
+
+### Loading and inspecting the Titanic dataset
+
+To load .csv data files into R, we will use the function read_csv() which comes with tidyverse in the readr package (remember, tidyverse is a collection of packages). Because we loaded tidyverse, readr is also loaded and ready to use. read_csv() will import the data as a tibble, which is basically a dataframe.
+
+```{r}
+
+dfTit <-
+  read_csv("titanic.csv") %>% 
+  rename_all(tolower)
+
+```
+
+**What is in the titanic dataset?**
+
+Variable | Definition    | Key                        | 
+---------|:--------------|:-------------------------- |
+survived |	Survival     |	0 = No, 1 = Yes           |
+class    |	Ticket class |	1 = 1st, 2 = 2nd, 3 = 3rd |
+name	   |  Name         |                            |
+sex	     |  Gender       |                            |
+age      |	Age in years |                            |
+sibsp    |	# of siblings / spouses aboard the Titanic	| |
+parch    |	# of parents / children aboard the Titanic	| |
+ticket   |	Ticket number	|                           |
+fare     |	Passenger fare|                           |
+cabin	   |  Cabin number  |                           |
+embarked |	Port of Embarkation	C = Cherbourg, Q = Queenstown, S = Southampton |         |
+
+Before any data analysis, you need to explore and understand the data at hand. Several R functions help for this purpose: You can use `head()` `str()` from the base R or `glimpse()`from tidyverse among other options.
+
+Note the differences in the output in your R console when you run these three functions.
+
+```{r}
+
+head(dfTit)
+
+```
+
+```{r}
+
+# Most functions take arguments. For the head function, the default is to show the first 6 rows of the dataframe. If we want to see the first 10 rows instead, we can set the argument accordingly. How do I know head() accepts n? I looked it up by typing ?head()
+head(dfTit, n=10)
+
+```
+
+```{r}
+
+str(dfTit)
+
+```
+
+```{r}
+
+glimpse(dfTit)
+
+```
+
+Other useful commands to explore a dataset:
+
+```{r}
+
+nrow(dfTit) # number of observations
+dim(dfTit) # dimensions of the dataframe (# of observations and variables)
+
+```
+
+```{r}
+
+summary(dfTit)
+
+```
+
+Frankly, I am not happy with this output because it does not nicely show everything I would like to know about a variable. For a better set of descriptive statistics, we will use the `skim()` function (from the `skimr` library, which we already loaded).
+
+```{r}
+
+skim(dfTit)
+
+```
+
+---
+
+### Data wrangling (using the `dplyr` package -included in `tidyverse`)
+
+The `dplyr` package has 5 main functions:
+
+* `filter()`: pick rows matching criteria
+* `select()`: pick columns by name
+* `mutate()`: add new variables
+* `group_by()`: group rows based on columns
+* `summarize()`: reduce groups to values
+
+Each one of these functions can be performed individually but they can also be combined using the pipe (`%>%`) operator. Let's explore some of these functions briefly. Assignment 1 will cover these functions more extensively in an interactive format.
+
+#### select()
+
+Use the `select()` function to reduce the dataframe to certain variables (columns). Here's an example:
+
+```{r}
+
+dfTit %>%                 # %>% operator pipes the titanic dataset into the select() function
+  select(age, sex, survived)
+
+```
+
+#### filter()
+
+Use the `filter()` function to reduce the dataframe to certain observations (rows). Here's an example:
+
+```{r}
+
+dfTitFemale <-
+  dfTit %>%
+  filter(sex == "female")
+
+dfTitFemale
+
+```
+
+#### mutate()
+
+Use the `mutate()` function to add a new variable (column) to the dataframe. Here's an example:
+
+```{r}
+
+dfTit <-
+  dfTit %>%
+  mutate(totalCost = sibsp*fare + parch*fare)
+
+```
+
+---
+
+### Data visualization (using the `ggplot2` package -included in `tidyverse`)
+
+Let's explore some examples briefly. Assignment 1 will cover the essential ggplot2 features more extensively in an interactive format. In Assignment 1, you will learn how to create plots using ggplot() function. In this course, we will create a plot using ggplot() and make it interactive by using ggplotly() function from the plotly package.
+
+#### Scatter plot example
+
+```{r}
+
+plotAgebyFare <-
+  dfTit %>% 
+  ggplot(aes(x = age, y = fare, color = sex)) + geom_point()
+
+plotAgebyFare
+
+```
+
+```{r}
+
+ggplotly(plotAgebyFare) #ggplotly is a function from the plotly package, which we already loaded
+
+```
+
+#### Example combining filter() of dplyr and ggplot together
+
+```{r}
+ 
+plotAgebyFareAbove100 <-
+  dfTit %>%
+  filter(fare > 100) %>%
+  ggplot(aes(x = age, y = fare, color = sex)) + geom_point()
+
+plotAgebyFareAbove100
+
+ggplotly(plotAgebyFareAbove100)
+
+```
+
+```{r}
+
+plotAgebyFareAbove100 <-
+  dfTit %>%
+  filter(fare > 100) %>%
+  ggplot(aes(x = age, y = fare, color = sex)) + geom_point() +
+  geom_hline(yintercept = 200) + geom_vline(xintercept = 60)
+
+plotAgebyFareAbove100
+
+```
+
+```{r}
+
+ggplotly(plotAgebyFareAbove100)
+
+```
+
+
+```{r}
+
+dfTit %>% 
+  filter(age==64, fare==263) %>% 
+  select(name, cabin, survived)
+
+```
+
+One last but very important data manipulation trick:
+
+```{r}
+
+dfTit <-
+  dfTit %>%
+  mutate(highFare = ifelse(fare>200, 1, 0))
+
+```
+
+OR
+
+```{r}
+
+dfTit <-
+  dfTit %>%
+  mutate(lowFare = ifelse(fare>=0 & fare<=200, 'YES', 'NO'))
+
+```
+
+---
+
+### Optional but important use cases:
+
+
+Let's create a character vector with three possible credit ratings. 
+
+```{r}
+
+credit <- c("AAA", "AA", "A", "BBB", "AA", "BBB", "A")
+credit
+
+# You can use the class() function to check the type of the variable credit
+class(credit)
+
+```
+
+This character vector is called a categorical variable. We can convert a categorical variable into a factor, assign it an order, and use it in statistical models this way.
+
+```{r}
+
+# as_factor() function included in tidyverse helps us make the conversion
+
+creditFactor <- as_factor(credit)
+
+# R now recognizes the three levels, check below
+
+creditFactor
+
+```
+
+
+```{r}
+
+# Let's make sure the variable type is a factor now:
+
+class(creditFactor)
+
+# We can order the factor type variables
+
+creditFactorOrdered <- ordered(creditFactor)
+
+creditFactorOrdered
+
+```
+
+As a reminder, the order of credit ratings from least risky to most risky is:
+AAA, AA, A, BBB, BB, B, CCC, CC, C, D
+
+
+More often than not, the datasets are messy and some numbers may be stored as characters. This prevents you from performing arithmetic operations on them.
+
+Similar to as.factor(), there is a function for that. as.numeric() can be used to convert data type to numeric. As you may have already guessed, as.character() would reverse the operation. Let's create a sample vector and give these a try below:
+
+```{r}
+
+x <- c("1", "2", "3", "1", "5", "9")
+x
+class(x)
+
+y <- as.numeric(x)
+y
+class(y)
+
+z <- as.character(y)
+z
+class(z)
+
+```
+
+Cross-tabulations are also essential and we will use them in a couple of weeks. table() function creates a count for each combination in a given vector. For example:
+
+```{r}
+
+a <- c("Yes", "No", "Yes", "No", "Yes", "No", "Yes", "No", "Yes", "Yes")
+table(a)
+
+```
+
+
+Cross-tabulations can also be created for two categorical variables if both vectors have the same length. This is essentially what we will do in a couple of weeks.
+
+```{r}
+
+b <- c("New York", "New York", "New York", "Miami", "Miami", "New York", "New York", "New York", "Miami", "Miami")
+
+t <- table(a, b)
+
+t
+
+```
+
+Another useful function is prop.table(), which can be used to get the proportions:
+
+```{r}
+
+prop.table(t)
+
+```
+
+You don't need to understand this now, but we will often use cross-tabulations to evaluate how good a prediction model is. For example:
+
+Suppose we have a dataset with labels for whether a credit card transaction is fraudulent or legitimate. We build a model that uses many variables/features to predict whether a transaction is legitimate or fraudulent.
+
+Let "Actual" be the vector of true/correct labels (whether legitimate or fradulent), and let "Predicted" be the vector of predicted labels (whether we predict it to be legitimate or fradulent). 
+
+table(Actual, Predicted) would create a table showing how well we predicted the true labels, right? Just think about the four cells the resulting two-by-two would include:
+
+1 How many fraudulent transactions were classified as fraudulent
+2. How many fraudulent transactions were classified as legitimate
+3. How many legitimate transactions were classified as fraudulent
+4. How many legitimate transactions were classified as legitimate
+
+---
+
+* See RStudio cheatsheets: https://www.rstudio.com/resources/cheatsheets/

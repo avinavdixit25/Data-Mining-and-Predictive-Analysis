@@ -1,0 +1,754 @@
+---
+title: "Untitled"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("fpp3")
+library("plotly")
+library("skimr")
+library("lubridate")
+library("anomalize")
+library("zoo")
+
+```
+
+
+
+PART 1
+
+```{r}
+
+# 1)
+# a)
+setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+tsLCOrg <- read_csv("lendingClub.csv")
+tsLCOrg <- tsLCOrg %>% 
+  mutate(state = as.factor(state))
+tsLCOrg
+
+```
+
+```{r}
+# b)
+tsbLCOrg <- tsLCOrg %>% as_tsibble(index = date, key = state)
+summary(tsbLCOrg)
+
+```
+
+```{r}
+
+# (d)
+#setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+tsNYEcon <- read_csv("nyEcon.csv")
+tsNYEcon <- tsNYEcon %>% 
+  mutate(state = as.factor(state),
+         date = mdy(date))
+tsNYEcon
+
+```
+
+```{r}
+
+# e)
+# i)
+#setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+tsPop <- read_csv("popData2010.csv")
+tsLCOrg <- tsLCOrg %>% 
+  merge(tsPop, by = "state")
+
+```
+
+```{r}
+
+# ii)
+tsLCOrg <- tsLCOrg %>% 
+  mutate(loansPerCapita = totalLoans/population)
+tsLCOrg
+
+```
+
+```{r}
+
+# iii)
+tsLCOrg <- 
+  full_join(tsLCOrg, tsNYEcon, by = c('date', 'state'))
+tsLCOrg
+
+```
+
+```{r}
+
+tsLC <- tsLCOrg %>% 
+  as_tsibble(index = date, key = state)
+tsLC
+
+```
+```{r}
+popPercentile <- quantile(tsLC$population, c(.10, .90))
+popPercentile
+```
+
+
+```{r}
+
+# 2)
+# a)
+popPercentile <- quantile(tsLC$population, c(.10, .90))
+plot <- tsLC %>% 
+  filter(population <= popPercentile[1]) %>% 
+  ggplot(aes(x=date, y=loansPerCapita, color=state)) +
+  geom_line()+geom_point()
+plot
+
+
+```
+
+```{r}
+
+plot <- tsLC %>% 
+  filter(population >= popPercentile[2]) %>% 
+   ggplot(aes(x=date, y=loansPerCapita, color=state)) +
+  geom_line()+geom_point()
+plot
+
+```
+
+
+```{r}
+
+# b)
+anomalyNY <- 
+  tsLC %>%
+  filter(state == "NY") %>% 
+  time_decompose(loansPerCapita, method = "stl") %>%
+  anomalize(remainder, method = "iqr") %>%
+  plot_anomaly_decomposition() +
+  labs(title = "Anomaly detection for New York") +
+  xlab("Date") + ylab("Loans Per Capita")
+
+anomalyNY
+
+```
+```{r}
+ anomalyCO<- tsLC%>%
+  filter(state=='CO')%>%
+  select(date, loansPerCapita)%>%
+  time_decompose(loansPerCapita, method = "stl")%>%
+  anomalize(remainder, method= 'iqr')%>%
+  plot_anomaly_decomposition()+labs(title = 'Anomaly detection for Colorado')+ylab("Loans per Capita")
+  
+anomalyCO
+```
+```{r}
+anomalyMA<- tsLC%>%
+  filter(state=='MA')%>%
+  select(date, loansPerCapita)%>%
+  time_decompose(loansPerCapita, method = "stl")%>%
+  anomalize(remainder, method= 'iqr')%>%
+  plot_anomaly_decomposition()+labs(title = 'Anomaly detection for Massachusetts')+ylab("Loans per Capita")
+  
+anomalyMA
+```
+```{r}
+# 2.c
+
+tsLPCNY <-
+  tsLC %>% 
+  filter(state == "NY") %>%
+  mutate(date = yearmonth(date)) %>% 
+  select(date, loansPerCapita) %>% 
+  as_tsibble(index = date)
+
+plotofdSTL <- 
+  tsLPCNY %>% 
+  model(STL(loansPerCapita ~ trend() + season(window = "periodic"), robust = TRUE)) %>% 
+  components() %>% 
+  autoplot() + 
+  labs(title = 'STL Decomposition') + xlab("Year") + ylab("Percentage Change") + 
+  scale_x_date(date_breaks = "years" , date_labels = "%y")
+
+plot(plotofdSTL)
+```
+```{r}
+#2.d 
+tsLPCNY <-
+  tsLC %>% 
+  filter(state == "NY") %>%
+  mutate(date = yearmonth(date)) %>% 
+  as_tsibble(index = date)
+
+plot <- tsLPCNY %>% 
+  gg_season(loansPerCapita) + ylab("Loans per capita") + xlab("Year") +
+ggtitle("Seasonal plot")
+plot
+
+```
+
+```{r}
+tsLPCNY %>% 
+  gg_subseries(loansPerCapita) + ylab("Loans per capita") + xlab("Year") +
+ggtitle("Seasonal subseries plot")
+```
+
+```{r}
+tsLpCNY3years <- 
+  tsLPCNY %>% 
+  filter(date >= as.Date("2014-04-01"))
+
+gg_season(tsLpCNY3years) + 
+ylab("Loans per capita") +
+xlab("Year") +
+ggtitle("Seasonal plot for last 3 years")
+```
+```{r}
+gg_subseries(tsLpCNY3years) + 
+ylab("Loans per capita") +
+xlab("Year") +
+ggtitle("Seasonal subseries plot for last 3 years")
+```
+```{r}
+#2.e
+
+pNYACF <-
+  tsLPCNY %>%
+  ACF(loansPerCapita, lag_max = 48) %>%
+  autoplot() +  ggtitle("Autocorrelation function plot")
+pNYACF
+```
+```{r}
+pNYPACF <-
+  tsLPCNY %>%
+  PACF(loansPerCapita, lag_max = 48) %>%
+  autoplot() +  ggtitle("Partial Autocorrelation function plot")
+pNYPACF
+```
+
+```{r}
+# 2.f
+
+tsLPCNY %>%
+  gg_lag(loansPerCapita, lags = c(1,5,10,15,20,25)) + 
+  ggtitle("Lag plots")
+```
+```{r}
+#2.g
+tsLpCNYcurve <- 
+  tsLPCNY %>%
+  group_by_key() %>% 
+  mutate(LPCMA = slide_dbl(loansPerCapita, mean, na.rm = TRUE, .size = 5, .align = "center"))
+
+tsLpCNYcurve %>%
+  autoplot(loansPerCapita) + 
+  autolayer(tsLpCNYcurve, LPCMA, color='red') +
+  ggtitle("Loans-per-capita NY: 5th Order Moving Average")
+```
+```{r}
+tsLpCNYcurve
+```
+```{r}
+tsLPCNY
+```
+
+
+```{r}
+# 3.a
+tsLPCNYc <- tsLPCNY %>% 
+  select(date, loansPerCapita)
+pNYNaive <-
+  tsLPCNYc %>%
+  model(SNAIVE(loansPerCapita)) %>%
+  forecast(h = "5 years") %>%
+  autoplot(tsLPCNYc, colour = "#769ECB")+#, level = NULL) + 
+  geom_line(linetype = 'dashed', colour = '#000000') +
+  xlab("Year (monthly data)") + ylab("Loans Per Capita") +
+  ggtitle("Naive Forecast data for five years into the future")
+pNYNaive
+```
+```{r}
+pNYDrift <-
+  tsLPCNYc %>%
+  as_tsibble(index = date) %>% 
+  model(RW(loansPerCapita ~ drift())) %>%
+  forecast(h = "5 years") %>%
+  autoplot(tsLPCNYc, colour = "#769ECB")+#, level = NULL) + 
+  geom_line(linetype = 'dashed', colour = '#000000') +
+  xlab("Year (monthly data)") + ylab("Loan Per Capita") +
+  ggtitle("Drift Forecast data for five years into the future")
+pNYDrift
+```
+
+```{r}
+tsLC %>% 
+  filter(state=="NY")
+```
+```{r}
+#3.b
+
+modelTSNY <-
+  tsLC %>%
+  filter(state=="NY") %>% 
+  mutate(date=yearmonth(date)) %>% 
+  as_tsibble(index = date) %>%
+  model(TSLM(loansPerCapita ~ trend() + season() + avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI))
+report(modelTSNY)
+```
+
+```{r}
+# 3.c 
+
+modelTS1NY <-
+  tsLC %>%
+  filter(state=="NY") %>% 
+  mutate(date=yearmonth(date)) %>% 
+  as_tsibble(index = date) %>%
+  model(TSLM(loansPerCapita ~ avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI))
+report(modelTS1NY)
+```
+```{r}
+fitTSNY <-
+  augment(modelTSNY) %>%
+  ggplot(aes(x =date)) +
+  geom_line(aes(y = loansPerCapita, colour = "Data")) +
+  geom_line(aes(y = .fitted, colour = "Fitted")) +
+  xlab("Year") + ylab("Loans Per Capita") +
+  ggtitle("Loans issued in NY") +
+  scale_x_date(date_breaks = "years" , date_labels = "%y") +
+  guides(colour=guide_legend(title=NULL))
+plot(fitTSNY)
+```
+```{r}
+fitnotTSNY <-
+  augment(modelTS1NY) %>%
+  ggplot(aes(x =date)) +
+  geom_line(aes(y = loansPerCapita, colour = "Data")) +
+  geom_line(aes(y = .fitted, colour = "Fitted")) +
+  xlab("Year") + ylab("Loans Per Capita") +
+  ggtitle("Loans issued in NY without Trend and Season") +
+  scale_x_date(date_breaks = "years" , date_labels = "%y") +
+  guides(colour=guide_legend(title=NULL))
+plot(fitnotTSNY)
+```
+```{r}
+#3.d
+pLPCNY2014 <-
+  tsLPCNY %>%
+  filter(year(date) <= 2014) %>%
+  model(TSLM(loansPerCapita ~ trend() + season() + avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI)) %>%
+  forecast(new_data = tsLPCNY %>% filter(year(date) > 2014)) %>%
+  autoplot(tsLPCNY, colour = "#3399FF") +
+  geom_line(colour = '#535353') +
+  xlab("Year") + ylab("Loans Per Capita") +
+  ggtitle("Loans Per Capita NY 2014")
+
+pLPCNY2014
+```
+```{r}
+pLPCNY2015 <-
+  tsLPCNY %>%
+  filter(year(date) <= 2015) %>%
+  model(TSLM(loansPerCapita ~ trend() + season() + avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI)) %>%
+  forecast(new_data = tsLPCNY %>% filter(year(date) > 2015)) %>%
+  autoplot(tsLPCNY, colour = "#3399FF") +
+  geom_line(colour = '#535353') +
+  xlab("Year") + ylab("Loans Per Capita") +
+  ggtitle("Loans Per Capita NY 2015")
+
+pLPCNY2015
+
+
+```
+```{r}
+# 3.e
+
+modelTSNY %>% gg_tsresiduals()
+```
+
+```{r}
+#3.f 
+
+fitNYARIMA <-
+  tsLPCNY %>%
+  filter(state=="NY") %>% 
+  as_tsibble(index = date) %>% 
+  mutate(date=yearmonth(date)) %>% 
+  model(fitArima = ARIMA(loansPerCapita ~ PDQ(0,0,0)+ avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI,
+              stepwise = FALSE, approximation = FALSE))
+report(fitNYARIMA)
+```
+```{r}
+# 3.g
+
+tsLC%>%
+  filter(state=="NY") %>% 
+  mutate(date=yearmonth(date)) %>% 
+  as_tsibble(index = date) %>% 
+  features(loansPerCapita, unitroot_kpss)
+```
+
+
+```{r}
+tsLC%>%
+  filter(state=="NY") %>% 
+  mutate(date=yearmonth(date)) %>% 
+  as_tsibble(index = date) %>% 
+  features(difference(loansPerCapita), unitroot_kpss)
+```
+```{r}
+tsLC %>%
+  filter(state=="NY") %>% 
+  mutate(date=yearmonth(date)) %>% 
+  as_tsibble(index = date) %>% 
+  features(loansPerCapita, unitroot_ndiffs)
+```
+```{r}
+tsLC %>%
+  filter(state=="NY") %>% 
+  mutate(date=yearmonth(date)) %>% 
+  as_tsibble(index = date) %>% 
+  features(loansPerCapita, unitroot_nsdiffs)
+```
+
+```{r}
+# 3.h
+ARIMAmodel <-
+  tsLPCNY %>%
+  filter(state=="NY") %>% 
+  as_tsibble(index = date) %>% 
+  mutate(date=yearmonth(date)) %>% 
+  model(fitArima = ARIMA(loansPerCapita ~ PDQ(0,1,0)+ avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI,
+              stepwise = FALSE, approximation = FALSE))
+report(ARIMAmodel)
+```
+
+```{r}
+# 4.a
+
+set.seed(333)
+
+TrainNY <-
+  tsLC %>%
+  filter(date< '2016-03-01', state=="NY") %>% 
+  mutate(date=yearmonth(date))
+
+TestNY <-
+  tsLC %>%
+  filter(date >= '2016-03-01', state=="NY") %>% 
+  mutate(date=yearmonth(date))
+
+TrainNY <- TrainNY %>% 
+  as_tsibble(index = date)
+
+TestNY <- TestNY %>% 
+  as_tsibble(index = date)
+
+PredictNY <-
+  TrainNY %>%
+  model(
+  modelTS=TSLM(loansPerCapita ~ trend() + season()),
+  modelTS3b=TSLM(loansPerCapita ~ trend() + season()
+             + avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI),
+  modelArimaGrid = ARIMA(loansPerCapita ~ PDQ(0,0,0),
+              stepwise = FALSE, approximation = FALSE),
+  modelArima3f = ARIMA(loansPerCapita ~ PDQ(0,0,0)+ avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI,
+              stepwise = FALSE, approximation = FALSE))
+```
+
+```{r}
+PredictfinalNY <-
+  PredictNY %>%
+  forecast(new_data = TestNY)
+
+accuracy(PredictfinalNY, TestNY)
+```
+
+```{r}
+# 4.b
+
+set.seed(333)
+
+AprilTrainNY <-
+  tsLC %>%
+  filter(date< '2016-04-01', state=="NY") %>% 
+  mutate(date=yearmonth(date))
+
+AprilTestNY <-
+  tsLC %>%
+  filter(date >= '2016-04-01', state=="NY") %>% 
+  mutate(date=yearmonth(date))
+
+AprilTrainNY <- AprilTrainNY %>% 
+  as_tsibble(index = date)
+
+AprilTestNY <- AprilTestNY %>% 
+  as_tsibble(index = date)
+
+PredictAprilNY <-
+  AprilTrainNY %>%
+  model(
+  modelAprilTS=TSLM(loansPerCapita ~ trend() + season()),
+  modelAprilTS3b=TSLM(loansPerCapita ~ trend() + season()
+             + avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI),
+  modelArimaGridApril = ARIMA(loansPerCapita ~ PDQ(0,0,0),
+              stepwise = FALSE, approximation = FALSE),
+  modelArima3fApril = ARIMA(loansPerCapita ~ PDQ(0,0,0)+ avgGrade + avgIntRate +avgAnnualInc+ NYCondoPriceIdx + NYUnemployment+ NYCPI,
+              stepwise = FALSE, approximation = FALSE))
+```
+```{r}
+PredictAprilNY1 <-
+  PredictAprilNY %>%
+  forecast(new_data = AprilTestNY)
+
+accuracy(PredictAprilNY1, AprilTestNY)
+```
+Part II 
+Predicting/forecasting the U.S. retail sales
+
+1. Preparation and exploration
+
+
+```{r}
+# 1.a 
+tsRetail<-
+  read_csv('retailSales.csv')
+tsRetail <- tsRetail %>% mutate(date = mdy(date))
+```
+```{r}
+tsRetail
+```
+```{r} 
+skim(tsRetail)
+```
+
+```{r}
+# 1.c
+tsRetail <- tsRetail%>% as_tsibble(index = date)
+autoplot(tsRetail) + ggtitle("Sales Data - Full Data")
+```
+```{r}
+autoplot(tsRetail %>% filter(year(date) >= 2010)) + ggtitle("Sales Data - 2010 and above")
+```
+
+
+```{r}
+#2.a
+tsRetail2015 <- tsRetail %>% filter(year(date) >= 2015) %>% 
+  mutate(date = yearmonth(date))
+
+gg_season(tsRetail2015) + 
+ylab("Sales") + xlab("Year") +
+ggtitle("Seasonal Sales for 2015 and Above")
+```
+
+```{r}
+#2.b
+gg_subseries(tsRetail2015) + 
+ylab("Sales") + xlab("Year") +
+ggtitle("Seasonal Subseries Sales for 2015 and Above")
+```
+```{r}
+SalesDecomposed <- 
+  tsRetail %>% 
+  mutate(date = yearmonth(date)) %>%
+  model(STL(sales ~ trend() + season(window = "periodic"), robust = TRUE)) %>% 
+  components() %>% 
+  autoplot() + 
+  xlab("Year") + ylab("Sales") +
+  ggtitle("STL Decomposition - Full") +
+  scale_x_date(date_breaks = "years" , date_labels = "%y")
+
+SalesDecomposed
+```
+```{r}
+SalesDecomposed1 <- 
+  tsRetail %>%
+  filter(year(date) >= 2005 & year(date) <= 2015) %>%
+  mutate(date = yearmonth(date)) %>%
+  model(STL(sales ~ trend() + season(window = "periodic"), robust = TRUE)) %>% 
+  components() %>% 
+  autoplot() + 
+  xlab("Year") + ylab("Sales") +
+  ggtitle("STL Decomposition - 2005-15") +
+  scale_x_date(date_breaks = "years" , date_labels = "%y")
+
+SalesDecomposed1
+```
+```{r}
+#2.c
+tsRetail %>%
+  mutate(date = yearmonth(date)) %>%
+  ACF(sales, lag_max = 48) %>%
+  autoplot() +  
+  ggtitle("Autocorrelation function (ACF) plot for the Sales data")
+```
+
+```{r}
+tsRetail %>%
+  mutate(date = yearmonth(date)) %>%
+  PACF(sales, lag_max = 48) %>%
+  autoplot() +  
+  ggtitle("Partial Autocorrelation function (PACF) plot for the Sales data")
+```
+```{r}
+SalesSeasonal <-
+  tsRetail %>%
+  autoplot(sales, color='red') +
+  autolayer(components(tsRetail %>% mutate(date = yearmonth(date)) %>% model(STL(sales))), season_adjust, color='#1490D4') +
+  xlab("Year") + ylab("Sales") +
+  ggtitle("Sales Data")
+
+SalesSeasonal
+```
+```{r}
+#2.d
+tsRetailMovingAverage <- 
+  tsRetail %>%
+  group_by_key() %>% 
+  mutate(salesMA = slide_dbl(sales, mean, na.rm = TRUE, .size = 2, .align = "center-left"))
+
+tsRetailMovingAverage %>%
+  autoplot(sales) + 
+  autolayer(tsRetailMovingAverage, salesMA, color='red') +
+  ggtitle("Sales: 2nd Order Moving Average")
+```
+```{r}
+#3.a
+Sales <-
+  tsRetail %>%
+  mutate(date = yearmonth(date)) %>%
+  model(TSLM(sales ~ trend() + season()))
+
+report(Sales)
+```
+```{r}
+Sales %>% gg_tsresiduals()
+```
+```{r}
+#3.b
+SalesARIMAGrid <- tsRetail %>% mutate(date = yearmonth(date)) %>%
+  model(fitArima = ARIMA(sales ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE))
+
+report(SalesARIMAGrid)
+```
+
+```{r}
+SalesARIMAGrid %>% gg_tsresiduals()
+```
+```{r}
+#3.c
+tsRetail %>%
+  features(sales, unitroot_ndiffs)
+```
+```{r}
+tsRetail %>%
+  features(sales, unitroot_nsdiffs)
+```
+
+```{r}
+tsRetail %>%
+  mutate(diffSalesthenDiffSeason = difference(difference(sales), 12)) %>%
+  features(diffSalesthenDiffSeason, unitroot_kpss)
+```
+```{r}
+tsRetail %>% mutate(date = yearmonth(date)) %>%
+  PACF(sales, lag_max = 48) %>%
+  autoplot() +  ggtitle("PACF plot for the sales data w/o differencing")
+```
+```{r}
+tsRetail %>% mutate(date = yearmonth(date)) %>%
+  mutate(diffSalesthenDiffSeason = difference(difference(sales), 12)) %>%
+  PACF(diffSalesthenDiffSeason, lag_max = 48) %>%
+  autoplot() +  ggtitle("PACF plot for the sales data with differencing")
+```
+```{r}
+#3.d
+set.seed(333)
+
+tsRetailTrain <- tsRetail %>% filter(year(date) < 2011) %>% mutate(date = yearmonth(date))
+tsRetailTest <- tsRetail %>% filter(year(date) >= 2011) %>% mutate(date = yearmonth(date))
+
+tsRetailFit <-
+  tsRetailTrain %>%
+  model(
+    model1TimeTrendAndSeason = TSLM(sales ~ trend() + season()),
+    model2ARIMA = ARIMA(sales ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE))
+
+tsRetailPredict <-
+  tsRetailFit %>%
+  forecast(new_data = tsRetailTest)
+
+accuracy(tsRetailPredict, tsRetailTest)
+```
+
+```{r}
+#3.e
+set.seed(333)
+
+tsRetailTrain2016 <- tsRetail %>% filter(year(date) < 2016) %>% mutate(date = yearmonth(date))
+tsRetailTest2016 <- tsRetail %>% filter(year(date) >= 2016) %>% mutate(date = yearmonth(date))
+
+tsRetailFit2016 <-
+  tsRetailTrain2016 %>%
+  model(
+    model1TimeTrendAndSeason = TSLM(sales ~ trend() + season()),
+    model2ARIMA = ARIMA(sales ~ PDQ(0,0,0), stepwise = FALSE, approximation = FALSE))
+
+tsRetailPredict2016 <-
+  tsRetailFit2016 %>%
+  forecast(new_data = tsRetailTest2016)
+
+accuracy(tsRetailPredict2016, tsRetailTest2016)
+```
+```{r}
+#4.a
+tsRetail <- read_csv("retailSales.csv") %>% mutate(date = mdy(date)) %>% as_tsibble(index = date)
+```
+```{r}
+anomaly <- 
+  tsRetail %>%
+  time_decompose(sales, method = "stl") %>%
+  anomalize(remainder, method = "gesd")
+anomaly
+```
+
+```{r}
+anomaly  %>%
+  plot_anomaly_decomposition() +
+  labs(title = "Anomaly detection for the Sales data") +
+  xlab("Year") + ylab("Sales") +
+  scale_x_date(date_breaks = "years" , date_labels = "%y")
+```
+```{r}
+#4.b
+Retail2011 <-
+  tsRetailFit %>%
+  forecast(new_data = tsRetailTest) %>%
+  autoplot(tsRetailTrain, level = NULL) +
+  geom_line() +
+  xlab("Year") + ylab("Sales") +
+  ggtitle("US Retail Sales: 2011 Onwards") + 
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) + 
+  scale_x_date(limits = c(as.Date('2010-01-01'), as.Date('2021-01-01')))
+Retail2011
+```
+```{r}
+Retail2016 <-
+  tsRetailFit2016 %>%
+  forecast(new_data = tsRetailTest2016) %>%
+  autoplot(tsRetailTrain2016, level = NULL) +
+  geom_line() +
+  xlab("Year") + ylab("Sales") +
+  ggtitle("Sales: 2016 Onwards") + 
+  scale_y_continuous(labels = function(x) format(x, scientific = FALSE)) +
+  scale_x_date(limits = c(as.Date('2010-01-01'), as.Date('2021-01-01')))
+
+Retail2016
+```
+

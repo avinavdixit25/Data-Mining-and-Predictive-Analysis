@@ -1,0 +1,417 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  pdf_document:
+    latex_engine: xelatex
+  html_notebook: default
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+
+# This chunk shows/hides the code in your final report. When echo = TRUE, the code
+# is shown in the report. When echo = FALSE, the code is hidden from the final report.
+# We would like to see your code, so please leave the setting as is during the course.
+# This chunk will not show up in your reports, so you can safely ignore its existence.
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+The following is your first chunk to start with. Remember, you can add chunks using the menu
+above (Insert -> R) or using the keyboard shortcut Ctrl+Alt+I. A good practice is to use
+different code chunks to answer different questions. You can delete this comment if you like.
+
+Other useful keyboard shortcuts include Alt- for the assignment operator, and Ctrl+Shift+M
+for the pipe operator. You can delete these reminders if you don't want them in your report.
+
+
+```{r}
+# setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data") #Don't forget to set your working directory before you start!
+
+library("tidyverse")
+library("tidymodels")
+library("plotly")
+library("skimr")
+library("caret")
+```
+
+```{r}
+setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+
+dff <- read_csv("lab3FraminghamHeart.csv")
+skim(dff)
+
+```
+
+```{r}
+
+# i.
+colsToFactor <- c('gender', 'education', 'currentSmoker', 'BPMeds', 'prevalentStroke', 'prevalentHyp', 'diabetes')
+
+```
+```{r}
+
+# ii.
+dff <- dff %>% 
+  mutate_at(colsToFactor, ~factor(.))
+str(dff)
+
+```
+
+```{r}
+
+# 1.
+plot <- dff %>% 
+  ggplot(aes(x = TenYearCHD, y = sysBP, group = TenYearCHD)) + geom_boxplot()
+#ggplotly(plot)
+plot
+
+```
+
+```{r}
+
+plot <- dff %>% 
+  ggplot(aes(x = TenYearCHD, y = diaBP, group = TenYearCHD)) + geom_boxplot()
+#ggplotly(plot)
+plot
+
+```
+
+```{r}
+
+plot <- dff %>% 
+  ggplot(aes(x = TenYearCHD, y = totChol, group = TenYearCHD)) + geom_boxplot()
+#ggplotly(plot)
+plot
+
+```
+
+```{r}
+
+# 2.i
+set.seed(123)
+dffTrain <- dff %>% sample_frac(0.7)
+dffTest <- dplyr::setdiff(dff, dffTrain)
+
+```
+
+```{r}
+
+# 2.ii
+dffTrain %>% 
+  group_by(gender) %>% 
+  tally() %>% 
+  mutate(pct = 100*n/sum(n))
+
+```
+
+```{r}
+
+dffTest %>% 
+  group_by(gender) %>% 
+  tally() %>% 
+  mutate(pct = 100*n/sum(n))
+
+```
+
+
+```{r}
+
+dffTrain %>% 
+  group_by(ageGroup = cut_interval(age, length = 10)) %>% 
+  tally() %>% 
+  mutate(pct = 100*n/sum(n))
+
+```
+
+```{r}
+
+plot <- dffTrain %>% 
+  ggplot(aes(x = age, fill = gender)) + geom_histogram(color = 'black')
+ggplotly(plot)
+
+```
+
+```{r}
+
+# Q3.
+fitLPM <- lm(formula = TenYearCHD ~ ., data = dffTrain)
+summary(fitLPM)
+
+```
+
+```{r}
+
+car::vif(fitLPM)
+
+```
+
+```{r}
+
+fitLPM <- lm(formula = TenYearCHD ~ . - currentSmoker, data = dffTrain)
+summary(fitLPM)
+
+```
+
+```{r}
+
+car::vif(fitLPM)
+
+```
+
+```{r}
+
+# Q4
+resultsLPM <-
+	lm(formula = TenYearCHD ~ . - currentSmoker, data = dffTrain) %>%
+  predict(dffTest, type = "response") %>% 
+  bind_cols(dffTest, predictedProb=.) %>% 
+  mutate(predictedClass = ifelse(predictedProb > 0.5, 1, 0))
+skim(resultsLPM)
+
+```
+
+```{r}
+
+dffTest %>% 
+  group_by(TenYearCHD) %>% 
+  tally()
+
+```
+
+```{r}
+
+resultsLPM %>% 
+  group_by(predictedClass) %>% 
+  tally()
+
+```
+
+```{r}
+
+dffTrain <- dffTrain %>% 
+  mutate(TenYearCHD = factor(TenYearCHD))
+dffTrain
+
+```
+
+```{r}
+
+dffTest <- dffTest %>% 
+  mutate(TenYearCHD = factor(TenYearCHD))
+dffTest
+
+```
+
+
+```{r}
+
+# Q5
+fitLR <- glm(formula = TenYearCHD ~ . - currentSmoker, data = dffTrain, family = "binomial")
+summary(fitLR)
+
+```
+
+```{r}
+
+exp(coef(fitLR))
+
+```
+
+```{r}
+
+# Q6
+resultsLog <-
+	glm(formula = TenYearCHD ~ . - currentSmoker, data = dffTrain, family = "binomial") %>%
+  predict(dffTest, type = "response") %>% 
+  bind_cols(dffTest, predictedProb=.) %>% 
+  mutate(predictedClass = as.factor(ifelse(predictedProb > 0.5, 1, 0)))
+skim(resultsLog)
+
+```
+
+```{r}
+
+resultsLog %>% 
+  group_by(predictedClass) %>% 
+  tally()
+
+```
+
+```{r}
+
+# Q7
+resultsLog %>% 
+  conf_mat(truth = as.numeric(as.factor(TenYearCHD)), estimate = predictedClass)
+
+```
+
+```{r}
+
+# Q8
+plot <- resultsLog %>% 
+  ggplot(aes(x = age, y = predictedProb, color = gender, linetype = currentSmoker)) + 
+  geom_point() + 
+  geom_smooth() +
+  labs(title = "Heart disease probability by age", x = "Age", y = "Predicted Probability")
+plot
+
+```
+
+```{r}
+
+plot <- resultsLog %>% 
+  ggplot(aes(x = cigsPerDay, y = predictedProb, color = gender)) + 
+  geom_point() + 
+  geom_smooth() +
+  labs(title = "Heart disease probability by cigarettes per day", x = "Cigarettes Per Day", y = "Predicted Probability")
+plot
+
+```
+
+```{r}
+
+plot <- resultsLog %>% 
+  ggplot(aes(x = totChol, y = predictedProb, color = currentSmoker)) + 
+  geom_point() + 
+  geom_smooth() +
+  labs(title = "Heart disease probability by total cholestrol level", x = "Total Cholestrol Level", y = "Predicted Probability")
+plot
+
+```
+
+```{r}
+
+plot <- resultsLog %>% 
+  ggplot(aes(x = glucose, y = predictedProb, color = gender, linetype = currentSmoker)) + 
+  geom_point() + 
+  geom_smooth() +
+  labs(title = "Heart disease probability by glucose level", x = "Glucose Level", y = "Predicted Probability")
+plot
+
+```
+
+```{r}
+
+# Q9
+resultsLogCaret <-
+	train(TenYearCHD ~ ., data = dffTrain, family = "binomial", method = "glm") %>%
+  predict(dffTest, type = "raw") %>% 
+  bind_cols(dffTest, predictedClass=.)
+skim(resultsLogCaret)
+
+```
+
+
+```{r}
+
+resultsLogCaret %>% 
+  group_by(predictedClass) %>% 
+  tally()
+
+```
+
+```{r}
+
+resultsLogCaret %>% 
+  xtabs(~predictedClass+TenYearCHD, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+# Q10
+setwd("C:/Users/Avinav/UMD/Sem 2/BUDT758T/Data")
+
+dfBP <- read_csv("lab3BancoPortugal.csv")
+skim(dfBP)
+
+```
+
+```{r}
+
+colsToFactor <- c('openedAccount', 'newcustomer', 'agegroup', 'job', 'marital', 'education', 'default', 'housing', 'loan', 'contact', 'month', 'day_of_week', 'poutcome')
+
+dfBP <- dfBP %>% 
+  mutate_at(colsToFactor, ~factor(.))
+str(dfBP)
+
+```
+
+```{r}
+
+set.seed(123)
+dfBPTrain <- dfBP %>% sample_frac(0.7)
+dfBPTest <- dplyr::setdiff(dfBP, dfBPTrain)
+
+```
+
+```{r}
+
+resultsLogCaretBP <-
+	train(openedAccount ~ ., data = dfBPTrain, family = "binomial", method = "glm") %>%
+  predict(dfBPTest, type = "raw") %>% 
+  bind_cols(dfBPTest, predictedClass=.)
+skim(resultsLogCaretBP)
+
+```
+
+```{r}
+
+resultsLogCaretBP %>% 
+  xtabs(~predictedClass+openedAccount, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+car::vif(glm(formula = openedAccount ~ . - newcustomer, data = dfBPTrain, family = "binomial"))
+
+```
+
+
+```{r}
+
+resultsLogCaretBP <-
+	train(openedAccount ~ . - newcustomer - emp.var.rate - euribor3m, data = dfBPTrain, family = "binomial", method = "glm") %>%
+  predict(dfBPTest, type = "raw") %>% 
+  bind_cols(dfBPTest, predictedClass=.)
+
+resultsLogCaretBP %>% 
+  xtabs(~predictedClass+openedAccount, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+resultsLogCaretBP <-
+	train(openedAccount ~ . - newcustomer - agegroup - marital - education - contact - poutcome - month, data = dfBPTrain, family = "binomial", method = "glm") %>%
+  predict(dfBPTest, type = "raw") %>% 
+  bind_cols(dfBPTest, predictedClass=.)
+
+resultsLogCaretBP %>% 
+  xtabs(~predictedClass+openedAccount, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
+```{r}
+
+
+resultsLogCaretBP <-
+	train(openedAccount ~ . - newcustomer - agegroup - marital - education, data = dfBPTrain, family = "binomial", method = "glm") %>%
+  predict(dfBPTest, type = "raw") %>% 
+  bind_cols(dfBPTest, predictedClass=.)
+
+resultsLogCaretBP %>% 
+  xtabs(~predictedClass+openedAccount, .) %>% 
+  confusionMatrix(positive = '1')
+
+```
+
